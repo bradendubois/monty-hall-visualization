@@ -3,7 +3,7 @@ import time
 
 import urwid
 import asyncio
-import threading
+
 
 class MontyHallTitle(urwid.Text):
 
@@ -18,13 +18,14 @@ class MontyHallTitle(urwid.Text):
         if key in ["q", "Q"]:
             raise urwid.ExitMainLoop()
 
+
 class OutcomeViewer(urwid.WidgetWrap):
 
     def __init__(self):
         col = urwid.Columns([urwid.Text('heey'), urwid.Text("There")])
 
         self._w = urwid.LineBox(
-            col,
+            urwid.BoxAdapter(urwid.Filler(col, "top"), 5),
             title="Outcomes",
             title_align="left"
         )
@@ -32,20 +33,70 @@ class OutcomeViewer(urwid.WidgetWrap):
         super().__init__(self._w)
 
 
+class Writer(urwid.WidgetWrap):
 
-    def keypress(self, size, key):
-        if key in ["q", "Q"]:
-            raise urwid.ExitMainLoop()
+    def __init__(self):
+
+        self._w = urwid.Text("Here")
+        self.to_show = ""
+
+        super().__init__(self._w)
+
+    def show(self, message: str):
+        self._w.set_text(message)
+
+    def current_shown(self):
+        return self._w.text
+
+class Door(urwid.WidgetWrap):
+
+    def __init__(self, door_number: int):
+
+        self.player_selected = urwid.Text("")
+        self.winner = urwid.Text("")
+        self.revealed = urwid.Text("")
+
+        self._w = urwid.LineBox(
+            urwid.Pile([
+                self.player_selected,
+                self.winner,
+                self.revealed
+
+            ])
+        )
+
+        self._w.set_title("Door " + str(door_number))
+
+        super().__init__(self._w)
+
+    def set_player_selected(self):
+        self.player_selected.set_text("Chosen")
+
+    def set_winning_door(self):
+        self.winner.set_text("Winner")
+
+    def set_revealed(self):
+        self.revealed.set_text("Revealed")
 
 
 class SimulationViewer(urwid.WidgetWrap):
 
     def __init__(self):
 
-        col = urwid.Columns([urwid.Text('heey')])
+        self.active = urwid.Text("Simulation: ", align="left")
+        self.speed = urwid.Text("Speed: ", align="right")
+
+        self.output_info = Writer()
 
         self._w = urwid.LineBox(
-            col,
+            urwid.Pile([
+                urwid.BoxAdapter(urwid.Filler(urwid.Columns([self.active, self.speed]), "top"), 5),
+                urwid.BoxAdapter(urwid.Filler(urwid.Columns([Door(i) for i in range(1, 4)]), "middle"), 5),
+                urwid.Columns([urwid.Text("Here"), urwid.Text("Here")]),
+                Controls(),
+                self.output_info
+            ]),
+
             title="Simulation",
             title_align="left"
         )
@@ -53,11 +104,11 @@ class SimulationViewer(urwid.WidgetWrap):
         self._selectable = False
         super().__init__(self._w)
 
+    def update_speed_display(self, new_value: str):
+        self.speed.set_text("Speed: " + new_value)
 
-    def keypress(self, size, key):
-        if key in ["q", "Q"]:
-            raise urwid.ExitMainLoop()
-
+    def update_simulation_status_display(self, message):
+        self.output_info.slow_write(message)
 
 class Controls(urwid.WidgetWrap):
 
@@ -73,17 +124,10 @@ class Controls(urwid.WidgetWrap):
 
         self._selectable = False
 
-        list = [urwid.Text(option) for option in options]
-            #list.append(urwid.AttrMap(text, None, "reveal focus"))
-
-            #list.append(urwid.Text(option))
-
-            #list.append(("pack", urwid.Padding(text, width="pack")))
-
-            #("pack", urwid.Padding(urwid.Text(("table_message", message)), width="pack",align="center"))
+        text_options = [urwid.Text(option) for option in options]
 
         self._w = urwid.LineBox(
-            urwid.Columns(list),
+            urwid.Columns(text_options),
             title="Controls",
             title_align="left"
         )
@@ -91,40 +135,62 @@ class Controls(urwid.WidgetWrap):
         self._selectable = False
         super().__init__(self._w)
 
-    def keypress(self, size, key):
-        if key in ["q", "Q"]:
-            raise urwid.ExitMainLoop()
-
 
 class Mainframe(urwid.WidgetWrap):
 
     def __init__(self):
 
-        #self._w = urwid.LineBox(urwid.Frame(urwid.Filler(urwid.LineBox(col))))
+        self.total = 0
+        self.delay = 1
+
+        self.active = False
 
         self.text_widget = urwid.Edit("Here")
+        self.update_text_widget()
+
+        self.outcome_viewer = OutcomeViewer()
+
+        self.simulation_viewer = SimulationViewer()
+        self.update_simulation_speed()
 
         self._w = urwid.Filler(
             urwid.Pile([
                 urwid.BoxAdapter(urwid.Filler(MontyHallTitle()), 5),
-                urwid.Columns([OutcomeViewer(), SimulationViewer()]),
+                urwid.Columns([self.outcome_viewer, self.simulation_viewer]),
                 Controls(),
                 self.text_widget
             ])
         )
 
-        self.total = 0
-        self.delay = 3
-
-        self.active = False
 
         super().__init__(self._w)
 
     def keypress(self, size, key):
         if key in ["q", "Q"]:
             raise urwid.ExitMainLoop()
-        if key == "a":
+        elif key in ["s", "space"]:
             self.active = not self.active
+
+            if self.active:
+                self.simulation_viewer.output_info.show("A new message")
+            else:
+                self.simulation_viewer.output_info.show("Different message")
+
+        elif key in ["a", "left"]:
+            if self.delay < 10:
+                self.delay *= 10
+        elif key in ["d", "right", "RIGHT"]:
+            if self.delay > 0.00001:
+                self.delay /= 10
+
+        self.update_text_widget()
+        self.update_simulation_speed()
+
+    def update_text_widget(self):
+        self.text_widget.set_caption(str(self.total))
+
+    def update_simulation_speed(self):
+        self.simulation_viewer.update_speed_display("{0:.2f}x".format(1 / self.delay))
 
     async def simulation_handler(self):
 
@@ -132,50 +198,27 @@ class Mainframe(urwid.WidgetWrap):
 
             if self.active:
                 self.total += 1
-                self.text_widget.set_caption(str(self.total))
+                self.update_text_widget()
+                self.update_simulation_speed()
+            await asyncio.sleep(self.delay)
 
-            await asyncio.sleep(2)
+
+def keypress(key):
+    if key in ["q", "Q"]:
+        raise urwid.ExitMainLoop()
 
 
-def main():
+if __name__ == '__main__':
 
     urwid.set_encoding('utf8')
 
     mainframe = Mainframe()
 
-    def keypress(key):
-        if key in ["q", "Q"]:
-            raise urwid.ExitMainLoop()
-
- #   main_loop = urwid.MainLoop(mainframe, unhandled_input=keypress)
- #   main_loop.run()
-
-    aloop = asyncio.get_event_loop()
-    ev_loop = urwid.AsyncioEventLoop(loop=aloop)
-    loop = urwid.MainLoop(mainframe, unhandled_input=keypress, event_loop=ev_loop)
-
+    asyncio_loop = asyncio.get_event_loop()
+    async_event_loop = urwid.AsyncioEventLoop(loop=asyncio_loop)
+    loop = urwid.MainLoop(mainframe, unhandled_input=keypress, event_loop=async_event_loop)
 
     asyncio.ensure_future(mainframe.simulation_handler())
-
+    #asyncio.ensure_future(mainframe.simulation_viewer.output_info.write_handler())
 
     loop.run()
-
-    #urwid_loop = urwid.MainLoop(Mainframe(), unhandled_input=keypress, handle_mouse=False)
-
-    #urwid_loop.run()
-
-#    try:
-#        # Returns when the connection is closed.
-#        loop.run_until_complete(mainframe.simulation())
-#
-#    finally:
-#        # Ensure urwid cleans up properly and doesn't wreck the terminal.
-#        urwid_loop.stop()
-#        loop.close()
-
-    for th in threading.enumerate():
-        if th != threading.current_thread():
-            th.join()
-
-if __name__ == '__main__':
-    main()
