@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import random
 import time
 
 import urwid
@@ -86,12 +87,20 @@ class SimulationViewer(urwid.WidgetWrap):
         self.active = urwid.Text("Simulation: ", align="left")
         self.speed = urwid.Text("Speed: ", align="right")
 
+        self.stay_successes = 0
+        self.total_stays = 0
+
+        self.switch_successes = 0
+        self.total_switches = 0
+
         self.output_info = Writer()
+
+        self.doors = [Door(i+1) for i in range(3)]
 
         self._w = urwid.LineBox(
             urwid.Pile([
                 urwid.BoxAdapter(urwid.Filler(urwid.Columns([self.active, self.speed]), "top"), 5),
-                urwid.BoxAdapter(urwid.Filler(urwid.Columns([Door(i) for i in range(1, 4)]), "middle"), 5),
+                urwid.BoxAdapter(urwid.Filler(urwid.Columns(self.doors), "middle"), 5),
                 urwid.Columns([urwid.Text("Here"), urwid.Text("Here")]),
                 Controls(),
                 self.output_info
@@ -109,6 +118,70 @@ class SimulationViewer(urwid.WidgetWrap):
 
     def update_simulation_status_display(self, message):
         self.output_info.slow_write(message)
+
+    async def simulation_handler(self):
+
+        while True:
+
+            if self.active:
+
+                first_reveal_doors = [0, 1, 2]
+                switchable_doors = [0, 1, 2]
+
+                # Pick the winning door
+                winning_door = random.randint(0, 2)
+                self.doors[winning_door].set_winning_door()
+                first_reveal_doors.remove(winning_door)
+
+                # TODO
+                await asyncio.sleep(1)
+
+                # Pick a door
+                selected_door = random.randint(0, 2)
+                self.doors[selected_door].set_winning_door()
+                first_reveal_doors.remove(selected_door)
+                switchable_doors.remove(selected_door)
+
+                # TODO
+                await asyncio.sleep(1)
+
+                # Reveal a non-winning door
+                reveal_door = first_reveal_doors.pop()
+                self.doors[reveal_door].set_revealed()
+                switchable_doors.remove(reveal_door)
+
+                # TODO
+                await asyncio.sleep(1)
+
+                # Randomly choose whether to switch doors
+                to_switch = random.randint(0, 1)
+                only_remaining_door = switchable_doors.pop()
+                # TODO - Improve relaying whether switched or not, and whether a win or not
+
+                # TODO - Refactor into if/elif of each combination
+                if to_switch:
+                    selected_door = only_remaining_door
+                    self.total_switches += 1
+                else:
+                    self.total_stays += 1
+
+                if selected_door == winning_door:
+
+                    if to_switch:
+                        self.switch_successes += 1
+                    else:
+                        self.stay_successes += 1
+
+                    # TODO - Mark a win?
+
+                # TODO
+                await asyncio.sleep(1)
+
+                self.total += 1
+                self.update_text_widget()
+                self.update_simulation_speed()
+            await asyncio.sleep(self.delay)
+
 
 class Controls(urwid.WidgetWrap):
 
