@@ -8,7 +8,7 @@ A minimal, command-line visualizer built in [Python](http://www.python.org/) usi
 [![Python](https://img.shields.io/badge/Python-3d79aa?style=for-the-badge)](https://www.python.org/)
 [![urwid](https://img.shields.io/badge/urwid-grey?style=for-the-badge)](http://urwid.org/)
 
-***This README is still being written and wil change.***
+***This README is still being written and will change.***
 
 ## Contents
 
@@ -30,7 +30,7 @@ The interface is built in [urwid](http://urwid.org/).
 ## Requirements
 
 - To run the project, you will need:
-  - [Python](https://www.python.org/) 3.7+
+  - [Python 3.7+](https://www.python.org/) 
   - [urwid](https://pypi.org/project/urwid/)
 
 ## Setup

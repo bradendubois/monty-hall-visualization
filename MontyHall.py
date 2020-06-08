@@ -85,8 +85,6 @@ class OutcomeViewer(urwid.WidgetWrap):
 
     def __init__(self):
 
-        col = urwid.Columns([urwid.Text('heey'), urwid.Text("There")])
-
         # TODO - Doesn't work. Ty urwid
 
         self.switches = Outcome("Switches", 1, 1)
@@ -111,7 +109,6 @@ class OutcomeViewer(urwid.WidgetWrap):
 
         self._w = urwid.LineBox(
             urwid.Pile([
-                urwid.BoxAdapter(urwid.Filler(col, "top"), 5),
                 self.switches,
                 self.stays
             ]),
@@ -377,8 +374,7 @@ class Mainframe(urwid.WidgetWrap):
 
         self.active = False
 
-        self.text_widget = urwid.Edit("Here")
-        self.update_text_widget()
+        self.text_widget = urwid.Edit("")
 
         self.outcome_viewer = OutcomeViewer()
         self.simulation_viewer = SimulationViewer(self.outcome_viewer)
