@@ -51,26 +51,39 @@ class Outcome(urwid.WidgetWrap):
         self.wins = wins
         self.total = total
 
+        # TODO - Some kind of scaling width?
         self.width = 50
 
-        self.wins_widget = urwid.Text(str(wins) + "/" + str(total) + " (" + str(wins/total * 100) + ")")
-        self.bar = urwid.Text("[" + (self.width * wins) // total * "X" + (self.width - (self.width * wins) // total) * " " + "]")
+        self.wins_widget = urwid.Text("")
+        self.bar = urwid.Text("")
 
         self._w = urwid.LineBox(
             urwid.Pile([
                 self.wins_widget,
                 self.bar
             ]),
+
             title=title,
             title_align="left"
         )
 
+        self.update_wins()
         super().__init__(self._w)
 
     def update_wins(self):
-        #self.wins.set_text("I Got hit")
-        self.wins_widget.set_text(str(self.wins) + "/" + str(self.total) + " (" + str(self.wins / self.total * 100) + ")")
-        self.bar.set_text("[" + (self.width * self.wins) // self.total * "X" + (self.width - (self.width * self.wins) // self.total) * " " + "]")
+
+        # Some default values to not divide by 0
+        percent = 0.00
+        x_str = ""
+
+        if self.total != 0:
+            percent = self.wins / self.total
+            x_str = (self.width * self.wins) // self.total * "X"
+
+        not_x_str = (self.width - len(x_str)) * " "
+
+        self.wins_widget.set_text(str(self.wins) + "/" + str(self.total) + " (" + str(percent * 100) + ")")
+        self.bar.set_text("[" + x_str + not_x_str + "]")
 
     def increment_selection(self):
         self.total += 1
@@ -80,6 +93,10 @@ class Outcome(urwid.WidgetWrap):
         self.wins += 1
         self.update_wins()
 
+    def clear(self):
+        self.wins = 0
+        self.total = 0
+        self.update_wins()
 
 class OutcomeViewer(urwid.WidgetWrap):
 
@@ -87,8 +104,8 @@ class OutcomeViewer(urwid.WidgetWrap):
 
         # TODO - Doesn't work. Ty urwid
 
-        self.switches = Outcome("Switches", 1, 1)
-        self.stays = Outcome("Stays", 1, 1)
+        self.switches = Outcome("Switches")
+        self.stays = Outcome("Stays")
 
         # urwid.register_signal(SimulationViewer, "Switches_selection")
         #urwid.connect_signal(switches, "Switches_selection", switches.increment_selection)
@@ -107,11 +124,10 @@ class OutcomeViewer(urwid.WidgetWrap):
         #urwid.connect_signal(switches, "Switches_win", switches.increment_win)
         #urwid.connect_signal(stays, "Stays_win", stays.increment_win)
 
+        self.outcome_map = {"Switches": self.switches, "Stays": self.stays}
+
         self._w = urwid.LineBox(
-            urwid.Pile([
-                self.switches,
-                self.stays
-            ]),
+            urwid.Pile([self.switches, self.stays]),
 
             title="Outcomes",
             title_align="left"
@@ -120,7 +136,11 @@ class OutcomeViewer(urwid.WidgetWrap):
         self._selectable = False
         super().__init__(self._w)
 
-    def update_data(self):
+    def clear(self):
+        for outcome in self.outcome_map:
+            self.outcome_map[outcome].clear()
+
+    def update_data(self, door):
         pass
 
 
@@ -144,10 +164,10 @@ class Door(urwid.WidgetWrap):
 
     def __init__(self, door_number: int):
 
-        self.winner = urwid.Text("")
-        self.player_selected = urwid.Text("")
-        self.revealed = urwid.Text("")
-        self.switched = urwid.Text("")
+        self.winner = urwid.Text("", align="center")
+        self.player_selected = urwid.Text("", align="center")
+        self.revealed = urwid.Text("", align="center")
+        self.switched = urwid.Text("", align="center")
 
         self._w = urwid.LineBox(
             urwid.Pile([
@@ -162,8 +182,11 @@ class Door(urwid.WidgetWrap):
 
         super().__init__(self._w)
 
-    def set_winning_door(self):
-        self.winner.set_text("Winner")
+    def set_winning_door(self, is_winner=False):
+        if is_winner:
+            self.winner.set_text("Auto")
+        else:
+            self.winner.set_text("Goat")
 
     def set_player_selected(self):
         self.player_selected.set_text("Chosen")
@@ -171,11 +194,11 @@ class Door(urwid.WidgetWrap):
     def set_revealed(self):
         self.revealed.set_text("Revealed")
 
-    def set_switched(self):
-        self.switched.set_text("Switched To")
-
-    def set_stayed(self):
-        self.switched.set_text("Stayed")
+    def set_switched(self, switched=True):
+        if switched:
+            self.switched.set_text("Switched To")
+        else:
+            self.switched.set_text("Stayed")
 
     def clear(self):
         self.winner.set_text("")
@@ -250,6 +273,8 @@ class SimulationViewer(urwid.WidgetWrap):
 
         while True:
 
+            await asyncio.sleep(0.000001)
+
             if self.active:
 
                 for door in self.doors:
@@ -260,11 +285,14 @@ class SimulationViewer(urwid.WidgetWrap):
 
                 # Pick the winning door
                 winning_door = random.randint(0, 2)
-                self.doors[winning_door].set_winning_door()
                 first_reveal_doors.remove(winning_door)
 
+                # Mark each door as an auto or goat
+                for door_index in range(3):
+                    self.doors[door_index].set_winning_door(door_index == winning_door)
+
                 # TODO
-                await asyncio.sleep(1 / self.delay())
+                await asyncio.sleep(1 / self.delay() ** 2)
 
                 # Pick a door
                 selected_door = random.randint(0, 2)
@@ -274,7 +302,7 @@ class SimulationViewer(urwid.WidgetWrap):
                 switchable_doors.remove(selected_door)
 
                 # TODO
-                await asyncio.sleep(1 / self.delay())
+                await asyncio.sleep(1 / self.delay() ** 2)
 
                 # Reveal a non-winning door
                 reveal_door = first_reveal_doors.pop()
@@ -282,7 +310,7 @@ class SimulationViewer(urwid.WidgetWrap):
                 switchable_doors.remove(reveal_door)
 
                 # TODO
-                await asyncio.sleep(1 / self.delay())
+                await asyncio.sleep(1 / self.delay() ** 2)
 
                 # Randomly choose whether to switch doors
                 to_switch = random.randint(0, 1)
@@ -299,7 +327,7 @@ class SimulationViewer(urwid.WidgetWrap):
                     self.outcome_viewer.switches.increment_selection()
                     # urwid.emit_signal(self, "Switches_selection")
                 else:
-                    self.doors[selected_door].set_stayed()
+                    self.doors[selected_door].set_switched(False)
                     self.total_stays += 1
 
                     self.outcome_viewer.stays.increment_selection()
@@ -323,17 +351,12 @@ class SimulationViewer(urwid.WidgetWrap):
                 elif selected_door != winning_door and not to_switch:
                     self.write("Staying with chosen door led to a loss.")
 
-                # TODO - Mark a win?
-
                 # TODO
-                await asyncio.sleep(1 / self.delay())
+                await asyncio.sleep(1 / self.delay() ** 2)
 
-
-
-                #self.update_text_widget()
-                #self.update_simulation_speed()
-
-            await asyncio.sleep(0.00001)
+    def toggle_active(self):
+        self.active = not self.active
+        self.active_text.set_text("Simulation: Active" if self.active else "Simulation: Paused")
 
     def write(self, message: str):
         self.output_info.show(message)
@@ -395,13 +418,16 @@ class Mainframe(urwid.WidgetWrap):
             raise urwid.ExitMainLoop()
         elif key in ["s", "space"]:
             self.active = not self.active
-            self.simulation_viewer.active = not self.simulation_viewer.active
+            self.simulation_viewer.toggle_active()
 
         elif key in ["a", "left"]:
             self.simulation_viewer.delay_decrease()
 
         elif key in ["d", "right"]:
             self.simulation_viewer.delay_increase()
+
+        elif key == "r":
+            self.outcome_viewer.clear()
 
         self.update_text_widget()
 
