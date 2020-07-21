@@ -8,8 +8,6 @@ A minimal, command-line visualizer built in [Python](http://www.python.org/) usi
 [![Python](https://img.shields.io/badge/Python-3d79aa?style=for-the-badge)](https://www.python.org/)
 [![urwid](https://img.shields.io/badge/urwid-grey?style=for-the-badge)](http://urwid.org/)
 
-***This README is still being written and will change.***
-
 ## Contents
 
 - [Description](#description)
